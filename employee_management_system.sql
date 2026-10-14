@@ -2,13 +2,9 @@
 ============================================================================
  EMPLOYEE MANAGEMENT SYSTEM - DATABASE DESIGN
 ============================================================================
- Platform : MySQL 8.0.16 or later
  Design   : Normalised to Third Normal Form (3NF)
-
- See README.md for the scenario, contents and normalisation notes.
 ============================================================================
 */
-
 
 -- ============================================================================
 -- SECTION 1: DATABASE CREATION
@@ -809,37 +805,3 @@ JOIN Users u ON u.UserID = al.UserID
 WHERE al.EntityName = 'EmployeeDocuments'
   AND al.ActionType = 'View'
 ORDER BY al.OccurredAt;
-
-
--- ============================================================================
--- SECTION 7: RULE CHECKS
--- ============================================================================
--- Each statement below breaks a business rule and is refused by the
--- database. They are commented out so the script runs end to end; run any
--- one on its own to see the error.
-
--- A second open posting for the same employee
---   ERROR 1062: Duplicate entry for key 'Assignments.UX_Assignments_OneOpen'
--- INSERT INTO Assignments (EmployeeID, SiteID, AssignmentRole, StartDate)
--- VALUES (4, 3, 'Guard', '2026-10-01');
-
--- A leaver with no exit date
---   ERROR 3819: Check constraint 'CHK_Employees_Exit' is violated
--- UPDATE Employees SET EmploymentStatus = 'Resigned' WHERE EmployeeID = 5;
-
--- A vehicle registration on a guard's posting
---   ERROR 3819: Check constraint 'CHK_Assignments_Vehicle' is violated
--- UPDATE Assignments SET VehicleRegNo = 'ABC-123-XY' WHERE AssignmentID = 2;
-
--- An executable file recorded as a document
---   ERROR 3819: Check constraint 'CHK_Documents_Mime' is violated
--- INSERT INTO EmployeeDocuments (EmployeeID, DocumentTypeID, StoragePath, MimeType, FileSizeBytes)
--- VALUES (4, 5, 'EMP-0004/setup.exe', 'application/x-msdownload', 1000);
-
--- Deleting an employee who has posting history
---   ERROR 1451: Cannot delete or update a parent row: a foreign key constraint fails
--- DELETE FROM Employees WHERE EmployeeID = 6;
-
--- ============================================================================
--- END OF SCRIPT
--- ============================================================================
