@@ -6,11 +6,36 @@ A relational database for managing employees, their documents and their postings
 
 ---
 
+## Scenario
+
+A staffing company employs two kinds of people:
+
+- **Direct staff**, who run the company itself (HR, finance, IT).
+- **Deployed staff** (guards, drivers, close protection officers), who are recruited for client companies and posted to the clients' sites.
+
+The company needs one place to keep every employee's record, their signed documents and guarantors, where each person is posted right now and where they were posted before, and a history of every status change.
+
+## Contents of the script
+
+1. Database creation
+2. Tables
+3. Indexes
+4. Sample data (all names, companies and numbers are fictional)
+5. Views
+6. Queries (joins, aggregation, CTEs and window functions)
+7. Rule checks (statements that break a business rule, with the error each one produces)
+
+## Normalisation
+
+| Form | How the design meets it |
+|---|---|
+| **1NF** | Every column holds a single value. Repeating groups (skills, documents, guarantors, postings) sit in their own tables. |
+| **2NF** | Every non-key column depends on the whole key. `EmployeeSkills` has a composite key and holds only data about that pairing. |
+| **3NF** | No transitive dependencies. Department is reached through Position, and derived values (full name, years of service, current posting, document counts) are calculated in views, never stored. |
+
 ## The business problem
 
-A staffing company employs two kinds of people. **Direct staff** run the company itself: HR, finance, IT and supervisors. **Deployed staff** (security guards, drivers and close protection officers) are recruited for client companies and posted to the clients' warehouses, offices and residences, often moving between sites over time.
-
-All of this was being tracked in spreadsheets and shared folders. As the company grew, everyday questions became hard to answer:
+Before this database, everything was tracked in spreadsheets and shared folders. As the company grew, everyday questions became hard to answer:
 
 - **Who is posted where right now?** When a client calls about a guard, finding that person meant searching several out-of-date spreadsheets.
 - **Is every site fully staffed?** Each client has agreed how many guards they need at each site, but nobody could see the shortfall at a glance.
@@ -125,7 +150,7 @@ ERROR 1451: Cannot delete or update a parent row: a foreign key constraint fails
 
 Each of the business questions is now answered by a single query instead of a search through spreadsheets and folders, the history is kept, and bad data is refused at the point of entry.
 
-## What is in the script
+## Script at a glance
 
 | Section | Contents |
 |---|---|

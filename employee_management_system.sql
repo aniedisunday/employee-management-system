@@ -5,32 +5,7 @@
  Platform : MySQL 8.0.16 or later
  Design   : Normalised to Third Normal Form (3NF)
 
- SCENARIO
-   A staffing company employs two kinds of people:
-     - Direct staff, who run the company itself (HR, finance, IT).
-     - Deployed staff (guards, drivers, close protection officers), who are
-       recruited for client companies and posted to the clients' sites.
-
-   The company needs one place to keep every employee's record, their signed
-   documents and guarantors, where each person is posted right now and where
-   they were posted before, and a history of every status change.
-
- CONTENTS
-   1. Database creation
-   2. Tables
-   3. Indexes
-   4. Sample data (all names, companies and numbers are fictional)
-   5. Views
-   6. Queries (joins, aggregation, CTEs and window functions)
-
- NORMALISATION
-   1NF: Every column holds a single value. Repeating groups (skills,
-        documents, guarantors, postings) sit in their own tables.
-   2NF: Every non-key column depends on the whole key. EmployeeSkills has a
-        composite key and holds only data about that pairing.
-   3NF: No transitive dependencies. Department is reached through Position,
-        and derived values (full name, years of service, current posting,
-        document counts) are calculated in views, never stored.
+ See README.md for the scenario, contents and normalisation notes.
 ============================================================================
 */
 
