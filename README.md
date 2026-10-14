@@ -23,7 +23,6 @@ The company needs one place to keep every employee's record, their signed docume
 4. Sample data (all names, companies and numbers are fictional)
 5. Views
 6. Queries (joins, aggregation, CTEs and window functions)
-7. Rule checks (statements that break a business rule, with the error each one produces)
 
 ## Normalisation
 
@@ -117,7 +116,6 @@ Each of the business questions is now answered by a single query instead of a se
 | 4. Sample data | 12 employees, 3 clients, 5 sites, 9 postings, 32 documents and their related records (all fictional) |
 | 5. Views | Employee directory, document compliance and site staffing |
 | 6. Queries | 11 queries showing multi-table joins, left joins, a self join, grouping with filters, subtotals, CTEs and window functions |
-| 7. Rule checks | Statements that break each business rule, with the error each one produces |
 
 | Table | Purpose |
 |---|---|
