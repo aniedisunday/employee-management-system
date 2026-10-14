@@ -1,6 +1,6 @@
 # Employee Management System: Database Design in SQL
 
-A relational database for managing employees, their documents and their postings to client sites, written in MySQL 8. Everything is in one script, [`employee_management_system.sql`](employee_management_system.sql): database creation, tables, indexes, sample data, views and queries.
+A relational database for managing employees, their documents and their postings to client sites, written in MySQL 8. Everything is in one script, [employee_management_system.sql](employee_management_system.sql): database creation, tables, indexes, sample data, views and queries.
 
 ![Entity relationship diagram](erd.png)
 
@@ -30,7 +30,7 @@ The company needs one place to keep every employee's record, their signed docume
 | Form | How the design meets it |
 |---|---|
 | **1NF** | Every column holds a single value. Repeating groups (skills, documents, guarantors, postings) sit in their own tables. |
-| **2NF** | Every non-key column depends on the whole key. `EmployeeSkills` has a composite key and holds only data about that pairing. |
+| **2NF** | Every non-key column depends on the whole key. The EmployeeSkills table has a composite key and holds only data about that pairing. |
 | **3NF** | No transitive dependencies. Department is reached through Position, and derived values (full name, years of service, current posting, document counts) are calculated in views, never stored. |
 
 ## The business problem
@@ -48,103 +48,60 @@ Before this database, everything was tracked in spreadsheets and shared folders.
 
 ### One record, connected properly
 
-Employees, positions, departments, staff categories, clients, sites, documents and guarantors each have their own table, joined by foreign keys. The design is normalised to **third normal form**: each fact is stored once, and values that can be worked out (full name, years of service, current posting, document counts) are calculated in views rather than stored, so they can never go out of date.
+Employees, positions, departments, staff categories, clients, sites, documents and guarantors each have their own table, joined by foreign keys. The design is normalised to third normal form, so each fact is stored once, and values that can be worked out are calculated in views rather than stored, so they can never go out of date.
 
-The staff category sits on the **position**, not the employee. Choosing someone's position decides whether they are direct or deployed, and a line manager is a **self-referencing foreign key** on `Employees`.
+The staff category sits on the **position**, not the employee. Choosing someone's position decides whether they are direct or deployed. Each employee's line manager is another employee, linked through a self-referencing foreign key.
 
 ### Who is posted where, with full history
 
-The `Assignments` table records every posting: who, which site, what role, what shift, from and to which date. Postings are closed, never overwritten, so the whole history is kept.
+The Assignments table records every posting: who, which site, what role, what shift, from and to which date. Postings are closed, never overwritten, so the whole history is kept.
 
-A person cannot be at two sites at once, so only **one open posting per employee** is allowed. MySQL has no filtered unique index, so this uses a stored generated column with a unique index on it:
+A person cannot be at two sites at once, so the database allows only **one open posting per employee**. MySQL does not support filtered unique indexes, so this is enforced with a stored generated column. The column holds the employee's ID only while a posting is open and becomes empty once the posting ends. A unique index on that column then allows any number of closed postings but only one open one.
 
-```sql
-OpenAssignment INT GENERATED ALWAYS AS
-    (CASE WHEN EndDate IS NULL THEN EmployeeID ELSE NULL END) STORED,
-CONSTRAINT UX_Assignments_OneOpen UNIQUE (OpenAssignment)
-```
+Site shortfalls come from joining sites to their current postings, grouping by site and keeping only the sites with fewer guards than the client needs:
 
-The column holds the employee's ID only while a posting is open. Closed postings become `NULL`, and MySQL allows any number of `NULL`s in a unique index.
-
-Site shortfalls come from a `LEFT JOIN` with `GROUP BY` and `HAVING`:
-
-```sql
-SELECT c.ClientName, s.SiteName, s.GuardsRequired, COUNT(a.AssignmentID) AS GuardsPosted
-FROM ClientSites s
-JOIN Clients c ON c.ClientID = s.ClientID
-LEFT JOIN Assignments a
-       ON a.SiteID = s.SiteID AND a.EndDate IS NULL AND a.AssignmentRole = 'Guard'
-GROUP BY c.ClientName, s.SiteID, s.SiteName, s.GuardsRequired
-HAVING COUNT(a.AssignmentID) < s.GuardsRequired;
-```
-
-```
-+--------------------+-------------------------+----------------+--------------+
-| ClientName         | SiteName                | GuardsRequired | GuardsPosted |
-+--------------------+-------------------------+----------------+--------------+
-| Crestway Logistics | Ojota Depot             |              3 |            1 |
-| Northgate Retail   | Oregun Warehouse        |              2 |            0 |
-| Harbourline Group  | Harbourline Head Office |              3 |            2 |
-+--------------------+-------------------------+----------------+--------------+
-```
+| Client | Site | Guards required | Guards posted |
+|---|---|---|---|
+| Crestway Logistics | Ojota Depot | 3 | 1 |
+| Northgate Retail | Oregun Warehouse | 2 | 0 |
+| Harbourline Group | Harbourline Head Office | 3 | 2 |
 
 ### Vetting gaps found by a query
 
-Document requirements are stored as **data, not code**. `DocumentTypes` says which documents are mandatory, how many are needed (two guarantor forms) and which staff category they apply to (a driving licence for drivers only). A new requirement is a new row, not a schema change.
+Document requirements are stored as **data, not code**. The DocumentTypes table says which documents are mandatory, how many are needed (two guarantor forms) and which staff category they apply to (a driving licence for drivers only). A new requirement is a new row, not a change to the design.
 
-The `vw_DocumentCompliance` view joins every current employee to every requirement that applies to them, counts the verified documents they hold, and flags the gaps (excerpt of the output):
+A compliance view joins every current employee to every requirement that applies to them, counts the verified documents they hold, and flags the gaps. An excerpt of the result:
 
-```
-+-------------+-------------------+---------------+-------------------------+---------------+---------------+
-| StaffNumber | FullName          | StaffCategory | TypeName                | VerifiedCount | RequiredCount |
-+-------------+-------------------+---------------+-------------------------+---------------+---------------+
-| EMP-0005    | Grace Adeyinka    | Guard         | Guarantor Form          |             1 |             2 |
-| EMP-0007    | Ifeanyi Nwachukwu | Guard         | Guarantor Form          |             0 |             2 |
-| EMP-0007    | Ifeanyi Nwachukwu | Guard         | Means of Identification |             0 |             1 |
-| EMP-0010    | Fatima Lawal      | Guard         | Signed Offer Letter     |             0 |             1 |
-+-------------+-------------------+---------------+-------------------------+---------------+---------------+
-```
+| Staff number | Name | Category | Document | Verified | Required |
+|---|---|---|---|---|---|
+| EMP-0005 | Grace Adeyinka | Guard | Guarantor Form | 1 | 2 |
+| EMP-0007 | Ifeanyi Nwachukwu | Guard | Guarantor Form | 0 | 2 |
+| EMP-0007 | Ifeanyi Nwachukwu | Guard | Means of Identification | 0 | 1 |
+| EMP-0010 | Fatima Lawal | Guard | Signed Offer Letter | 0 | 1 |
 
 ### History that is never lost
 
-Leavers are never deleted. Their status changes and an exit date and reason are recorded. Every status change (leave, suspension, return, exit) is written to `EmployeeStatusHistory` with its own dates, while `Employees` holds only the current status, so the next change cannot overwrite the last.
+Leavers are never deleted. Their status changes and an exit date and reason are recorded. Every status change (leave, suspension, return, exit) is written to a status history table with its own dates, while the Employees table holds only the current status, so the next change cannot overwrite the last.
 
-The foreign key from `Assignments` to `Employees` deliberately has **no cascade**, so deleting an employee who has posting history fails instead of silently destroying it.
+The link from postings to employees deliberately does not cascade deletes, so trying to delete an employee who has posting history fails instead of silently destroying that history.
 
 ### Sensitive data and audit trail
 
-- The national ID number is stored encrypted as `VARBINARY`, with a separate hash column for duplicate checks and only the last four digits kept for display.
-- Files are stored on disk. The database keeps the path and a SHA-256 hash to detect tampering.
-- `AuditLog` records who created, updated, viewed, verified or assigned what, and when.
+- The national ID number is stored encrypted, with a separate hashed copy for duplicate checks and only the last four digits kept for display.
+- Files are stored on disk. The database keeps the file location and a fingerprint (SHA-256 hash) to detect tampering.
+- An audit log records who created, updated, viewed, verified or assigned what, and when.
 
 ### Rules enforced by the database
 
-Business rules live in the schema as CHECK constraints and foreign keys, so bad data is refused whatever tries to save it:
+Business rules live in the design itself as check constraints and foreign keys, so bad data is refused whatever tries to save it. For example:
 
-```sql
--- A leaver must have an exit date, and a current employee must not
-CONSTRAINT CHK_Employees_Exit CHECK (
-    (EmploymentStatus IN ('Resigned','Retired','Terminated','Contract Ended') AND ExitDate IS NOT NULL)
-    OR
-    (EmploymentStatus IN ('Active','On Leave','Suspended') AND ExitDate IS NULL)
-)
+- A leaver must have an exit date, and a current employee must not.
+- A vehicle registration can only be recorded on a driver's posting.
+- A principal's name can only be recorded on a close protection officer's posting.
+- Only PDF, JPEG and PNG files can be recorded as documents, never an executable.
+- A contract end date cannot be earlier than its start date.
 
--- A vehicle registration belongs only on a driver's posting
-CONSTRAINT CHK_Assignments_Vehicle CHECK (VehicleRegNo IS NULL OR AssignmentRole = 'Driver')
-
--- Only document file types, never an executable
-CONSTRAINT CHK_Documents_Mime CHECK (MimeType IN ('application/pdf', 'image/jpeg', 'image/png'))
-```
-
-Each rule was tested by deliberately breaking it:
-
-```
-ERROR 1062: Duplicate entry '4' for key 'Assignments.UX_Assignments_OneOpen'
-ERROR 3819: Check constraint 'CHK_Employees_Exit' is violated
-ERROR 3819: Check constraint 'CHK_Assignments_Vehicle' is violated
-ERROR 3819: Check constraint 'CHK_Documents_Mime' is violated
-ERROR 1451: Cannot delete or update a parent row: a foreign key constraint fails
-```
+Each rule was tested by deliberately trying to break it, and the database refused every attempt: a second open posting for the same guard, a leaver with no exit date, a vehicle on a guard's posting, an executable file, and deleting an employee with posting history.
 
 ## The outcome
 
@@ -154,32 +111,26 @@ Each of the business questions is now answered by a single query instead of a se
 
 | Section | Contents |
 |---|---|
-| 1. Database creation | `CREATE DATABASE` with `utf8mb4` |
-| 2. Tables | 15 tables, 19 foreign keys, 25 CHECK constraints |
+| 1. Database creation | A new database with full Unicode support for names with accents |
+| 2. Tables | 15 tables, 19 foreign keys, 25 check constraints |
 | 3. Indexes | 18 indexes on foreign keys and the columns used for searching and filtering |
 | 4. Sample data | 12 employees, 3 clients, 5 sites, 9 postings, 32 documents and their related records (all fictional) |
-| 5. Views | `vw_EmployeeDirectory`, `vw_DocumentCompliance`, `vw_SiteStaffing` |
-| 6. Queries | 11 queries showing multi-table joins, LEFT JOIN, self join, GROUP BY with HAVING, WITH ROLLUP, CTEs and window functions (`LAG`, `RANK`) |
-| 7. Rule checks | Statements that break each business rule, commented out, with the error each one produces |
+| 5. Views | Employee directory, document compliance and site staffing |
+| 6. Queries | 11 queries showing multi-table joins, left joins, a self join, grouping with filters, subtotals, CTEs and window functions |
+| 7. Rule checks | Statements that break each business rule, with the error each one produces |
 
 | Table | Purpose |
 |---|---|
-| `Employees` | Central employee record, with line manager as a self join |
-| `Departments`, `Positions`, `StaffCategories` | Organisation structure |
-| `Clients`, `ClientSites` | Client companies and their individual sites |
-| `Assignments` | Postings of employees to client sites, with history |
-| `Skills`, `EmployeeSkills` | Skills, linked to employees through a junction table |
-| `DocumentTypes`, `EmployeeDocuments` | Document requirements and the documents held |
-| `Guarantors` | Guarantors, linked to their signed forms |
-| `EmployeeStatusHistory` | Every status period with dates and reasons |
-| `Users`, `AuditLog` | System users and the record of what they did |
+| Employees | Central employee record, with line manager as a self join |
+| Departments, Positions, StaffCategories | Organisation structure |
+| Clients, ClientSites | Client companies and their individual sites |
+| Assignments | Postings of employees to client sites, with history |
+| Skills, EmployeeSkills | Skills, linked to employees through a junction table |
+| DocumentTypes, EmployeeDocuments | Document requirements and the documents held |
+| Guarantors | Guarantors, linked to their signed forms |
+| EmployeeStatusHistory | Every status period with dates and reasons |
+| Users, AuditLog | System users and the record of what they did |
 
 ## How to run
 
-Requires MySQL 8.0.16 or later (earlier versions ignore CHECK constraints).
-
-```bash
-mysql -u root -p < employee_management_system.sql
-```
-
-The script drops and recreates the `EmployeeManagementSystem` database, loads the sample data and prints the result of every query. It can also be opened and run in MySQL Workbench.
+The script needs MySQL 8.0.16 or later, because earlier versions ignore check constraints. Open the file in MySQL Workbench and run it. It creates the database from scratch, loads the sample data and shows the result of every query.
